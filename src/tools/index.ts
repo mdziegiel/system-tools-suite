@@ -87,6 +87,10 @@ import { tool as uuidGenerator } from './uuid-generator';
 import { tool as macAddressLookup } from './mac-address-lookup';
 import { tool as xmlFormatter } from './xml-formatter';
 import { tool as yamlViewer } from './yaml-viewer';
+import { suiteTools, tool as defineSuiteTool } from './system-suite/systemTools';
+
+const suiteToolComponents = suiteTools.map(defineSuiteTool);
+const suiteComponentsByCategory = (category: string) => suiteToolComponents.filter((tool, index) => suiteTools[index].category === category);
 
 export const toolsByCategory: ToolCategory[] = [
   {
@@ -164,7 +168,23 @@ export const toolsByCategory: ToolCategory[] = [
   },
   {
     name: 'Network',
-    components: [ipv4SubnetCalculator, ipv4AddressConverter, ipv4RangeExpander, macAddressLookup, macAddressGenerator, ipv6UlaGenerator],
+    components: [...suiteComponentsByCategory('Network Tools'), ipv4SubnetCalculator, ipv4AddressConverter, ipv4RangeExpander, macAddressLookup, macAddressGenerator, ipv6UlaGenerator],
+  },
+  {
+    name: 'System Tools',
+    components: suiteComponentsByCategory('System Tools'),
+  },
+  {
+    name: 'Security Tools',
+    components: suiteComponentsByCategory('Security Tools'),
+  },
+  {
+    name: 'DevOps Tools',
+    components: suiteComponentsByCategory('DevOps Tools'),
+  },
+  {
+    name: 'Forensic Tools',
+    components: suiteComponentsByCategory('Forensic Tools'),
   },
   {
     name: 'Math',

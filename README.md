@@ -1,133 +1,124 @@
-<picture>
-    <source srcset="./.github/logo-dark.png" media="(prefers-color-scheme: light)">
-    <source srcset="./.github/logo-white.png" media="(prefers-color-scheme: dark)">
-    <img src="./.github/logo-dark.png" alt="logo">
-</picture>
+# System Tools Suite
 
-<p align="center">
-Useful tools for developer and people working in IT. <a href="https://it-tools.tech">Try it!</a>
-</p>
+System Tools Suite is a fork and extension of IT-Tools for sysadmins, network engineers, security analysts, DevOps engineers, and forensic responders.
 
-## Functionalities and roadmap
+It keeps the existing IT-Tools Vue/Vite frontend and adds a FastAPI backend for tools that need controlled server-side execution.
 
-Please check the [issues](https://github.com/CorentinTh/it-tools/issues) to see if some feature listed to be implemented.
+## Tool categories
 
-You have an idea of a tool? Submit a [feature request](https://github.com/CorentinTh/it-tools/issues/new/choose)!
+### Network Tools
+- Ping / traceroute from the server
+- TCP port scanner with custom ranges
+- DNS lookup for A, AAAA, MX, TXT, PTR, CNAME, and NS records
+- WHOIS lookup
+- SSL certificate checker with expiry, issuer, SANs, and fingerprint
+- Enhanced subnet calculator
+- VLAN calculator
+- BGP ASN lookup with prefix summary
+- Network bandwidth calculator
 
-## Self host
+### System Tools
+- SMART disk health checker and smartctl parser
+- Windows Event ID lookup
+- Syslog severity calculator
+- AD/LDAP distinguished name builder
+- GPO SYSVOL path calculator
+- Enhanced cron expression builder
+- Service uptime/SLA calculator
 
-Self host solutions for your homelab
+### Security Tools
+- Password generator with complexity controls
+- Certificate decoder
+- JWT decoder
+- Browser-side RSA SSH key material generator
+- Hash generator and verifier: MD5, SHA1, SHA256, SHA512
+- CIDR firewall rule builder
+- CVE lookup through NVD
 
-**From docker hub:**
+### DevOps Tools
+- Docker run to Compose converter
+- Kubernetes resource calculator
+- Terraform variable formatter
+- YAML / JSON / TOML converter
+- CI/CD pipeline template generator for GitHub Actions and GitLab CI
 
-```sh
-docker run -d --name it-tools --restart unless-stopped -p 8080:80 corentinth/it-tools:latest
+### Forensic Tools
+- File hash verifier
+- Metadata extractor
+- Binary string finder
+- Log analyzer for suspicious entries
+- IOC scanner with optional AbuseIPDB and VirusTotal lookups
+- Persistent case manager with evidence, notes, timeline, and export
+
+## Screenshots
+
+Screenshots go here after first visual release QA.
+
+- `screenshots/home.png`
+- `screenshots/network-tools.png`
+- `screenshots/case-manager.png`
+
+## Docker quickstart
+
+```bash
+git clone https://github.com/mdziegiel/system-tools-suite.git
+cd system-tools-suite
+cp .env.example .env
+# Optional: add VIRUSTOTAL_API_KEY and ABUSEIPDB_API_KEY for IOC lookups
+docker compose up -d --build
 ```
 
-**From github packages:**
+Open:
 
-```sh
-docker run -d --name it-tools --restart unless-stopped -p 8080:80 ghcr.io/corentinth/it-tools:latest
+```text
+http://localhost:10233
 ```
 
-**Other solutions:**
+MRDTech deployment target:
 
-- [Cloudron](https://www.cloudron.io/store/tech.ittools.cloudron.html)
-- [Tipi](https://www.runtipi.io/docs/apps-available)
-- [Unraid](https://unraid.net/community/apps?q=it-tools)
-
-## Contribute
-
-### Recommended IDE Setup
-
-[VSCode](https://code.visualstudio.com/) with the following extensions:
-
-- [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur)
-- [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
-- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
-- [i18n Ally](https://marketplace.visualstudio.com/items?itemName=lokalise.i18n-ally)
-
-with the following settings:
-
-```json
-{
-  "editor.formatOnSave": false,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
-  },
-  "i18n-ally.localesPaths": ["locales", "src/tools/*/locales"],
-  "i18n-ally.keystyle": "nested"
-}
+```text
+http://10.10.10.237:10233
 ```
 
-### Type Support for `.vue` Imports in TS
+## Persistence
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin) to make the TypeScript language service aware of `.vue` types.
+The case manager stores data in SQLite under `/data/cases.sqlite3`. The Compose file mounts that path through the `system-tools-suite-data` named volume.
 
-If the standalone TypeScript plugin doesn't feel fast enough to you, Volar has also implemented a [Take Over Mode](https://github.com/johnsoncodehk/volar/discussions/471#discussioncomment-1361669) that is more performant. You can enable it by the following steps:
+## Environment
 
-1. Disable the built-in TypeScript Extension
-   1. Run `Extensions: Show Built-in Extensions` from VSCode's command palette
-   2. Find `TypeScript and JavaScript Language Features`, right click and select `Disable (Workspace)`
-2. Reload the VSCode window by running `Developer: Reload Window` from the command palette.
+```text
+VIRUSTOTAL_API_KEY=       # optional
+ABUSEIPDB_API_KEY=        # optional
+DATA_DIR=/data
+DIST_DIR=/app/dist
+```
 
-### Project Setup
+## Development
 
-```sh
+Frontend:
+
+```bash
 pnpm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 pnpm dev
-```
-
-### Type-Check, Compile and Minify for Production
-
-```sh
 pnpm build
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+Backend:
 
-```sh
-pnpm test
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r backend/requirements.txt
+DATA_DIR=./data DIST_DIR=./dist uvicorn backend.app:app --reload --port 10233
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+## Architecture
 
-```sh
-pnpm lint
-```
-
-### Create a new tool
-
-To create a new tool, there is a script that generate the boilerplate of the new tool, simply run:
-
-```sh
-pnpm run script:create:tool my-tool-name
-```
-
-It will create a directory in `src/tools` with the correct files, and a the import in `src/tools/index.ts`. You will just need to add the imported tool in the proper category and develop the tool.
-
-## Contributors
-
-Big thanks to all the people who have already contributed!
-
-[![contributors](https://contrib.rocks/image?repo=corentinth/it-tools&refresh=1)](https://github.com/corentinth/it-tools/graphs/contributors)
-
-## Credits
-
-Coded with ❤️ by [Corentin Thomasset](https://corentin.tech?utm_source=it-tools&utm_medium=readme).
-
-This project is continuously deployed using [vercel.com](https://vercel.com).
-
-Contributor graph is generated using [contrib.rocks](https://contrib.rocks/preview?repo=corentinth/it-tools).
-
-<a href="https://www.producthunt.com/posts/it-tools?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-it&#0045;tools" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=345793&theme=light" alt="IT&#0032;Tools - Collection&#0032;of&#0032;handy&#0032;online&#0032;tools&#0032;for&#0032;devs&#0044;&#0032;with&#0032;great&#0032;UX | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
-<a href="https://www.producthunt.com/posts/it-tools?utm_source=badge-top-post-badge&utm_medium=badge&utm_souce=badge-it&#0045;tools" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/top-post-badge.svg?post_id=345793&theme=light&period=daily" alt="IT&#0032;Tools - Collection&#0032;of&#0032;handy&#0032;online&#0032;tools&#0032;for&#0032;devs&#0044;&#0032;with&#0032;great&#0032;UX | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+- Vue 3 + Vite + Naive UI frontend, preserving IT-Tools component patterns.
+- `src/tools/system-suite/` defines new tools and routes.
+- FastAPI backend under `backend/` handles server-side operations: ping, traceroute, DNS, WHOIS, SSL, port scan, SMART parsing, CVE lookup, IOC lookup, file forensics, and case persistence.
+- Single Docker container serves the built SPA and `/api/*` endpoints on port `10233`.
 
 ## License
 
-This project is under the [GNU GPLv3](LICENSE).
+GPL-3.0, inherited from IT-Tools.

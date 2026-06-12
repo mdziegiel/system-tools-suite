@@ -17,6 +17,7 @@ import svgLoader from 'vite-svg-loader';
 import { configDefaults } from 'vitest/config';
 
 const baseUrl = process.env.BASE_URL ?? '/';
+const pwaEnabled = process.env.DISABLE_PWA !== '1';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -53,12 +54,12 @@ export default defineConfig({
     vueJsx(),
     markdown(),
     svgLoader(),
-    VitePWA({
+    pwaEnabled && VitePWA({
       registerType: 'autoUpdate',
       strategies: 'generateSW',
       manifest: {
-        name: 'IT Tools',
-        description: 'Aggregated set of useful tools for developers.',
+        name: 'System Tools Suite',
+        description: 'Sysadmin, network, security, DevOps, and forensic tools.',
         display: 'standalone',
         lang: 'fr-FR',
         start_url: `${baseUrl}?utm_source=pwa&utm_medium=pwa`,
@@ -97,7 +98,7 @@ export default defineConfig({
       resolvers: [NaiveUiResolver(), IconsResolver({ prefix: 'icon' })],
     }),
     Unocss(),
-  ],
+  ].filter(Boolean),
   base: baseUrl,
   resolve: {
     alias: {

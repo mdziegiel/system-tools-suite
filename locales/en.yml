@@ -4,40 +4,40 @@ home:
     favoriteTools: 'Your favorite tools'
     allTools: 'All the tools'
     favoritesDndToolTip: 'Drag and drop to reorder favorites'
-  subtitle: 'Handy tools for developers'
+  subtitle: 'Sysadmin, network, security, DevOps, and forensic tools'
   toggleMenu: 'Toggle menu'
   home: Home
   uiLib: 'UI Lib'
-  support: 'Support IT-Tools development'
-  buyMeACoffee: 'Buy me a coffee'
+  support: 'System Tools Suite repository'
+  buyMeACoffee: 'GitHub'
   follow:
-    title: 'You like it-tools?'
+    title: 'System Tools Suite'
     p1: 'Give us a star on'
-    githubRepository: 'IT-Tools GitHub repository'
+    githubRepository: 'System Tools Suite GitHub repository'
     p2: 'or follow us on'
     twitterXAccount: 'IT-Tools X account'
     thankYou: 'Thank you!'
   nav:
     github: 'GitHub repository'
-    githubRepository: 'IT-Tools GitHub repository'
+    githubRepository: 'System Tools Suite GitHub repository'
     twitterX: 'X account'
-    twitterXAccount: 'IT Tools X account'
-    about: 'About  IT-Tools'
+    twitterXAccount: 'System Tools Suite X account'
+    about: 'About System Tools Suite'
     aboutLabel: 'About'
     darkMode: 'Dark mode'
     lightMode: 'Light mode'
     mode: 'Toggle dark/light mode'
 about:
   content: >
-    # About IT-Tools
+    # About System Tools Suite
 
-    This wonderful website, made with ❤ by [Corentin Thomasset](https://corentin.tech?utm_source=it-tools&utm_medium=about) , aggregates useful tools for developer and people working in IT. If you find it useful, please feel free to share it to people you think may find it useful too and don't forget to bookmark it in your shortcut bar!
+    System Tools Suite extends IT-Tools with sysadmin, network, security, DevOps, and forensic utilities while keeping the original client-side tools.
 
-    IT Tools is open-source (under the GPL-3.0 license) and free, and will always be, but it costs me money to host and renew the domain name. If you want to support my work, and encourage me to add more tools, please consider supporting by [sponsoring me](https://www.buymeacoffee.com/cthmsst).
+    System Tools Suite is open-source under the GPL-3.0 license.
 
     ## Technologies
 
-    IT Tools is made in Vue.js (Vue 3) with the the Naive UI component library and is hosted and continuously deployed by Vercel. Third-party open-source libraries are used in some tools, you may find the complete list in the [package.json](https://github.com/CorentinTh/it-tools/blob/main/package.json) file of the repository.
+    System Tools Suite uses Vue 3, Vite, Naive UI, and a FastAPI backend for server-side tools.
 
     ## Found a bug? A tool is missing?
 
