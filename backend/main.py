@@ -52,6 +52,47 @@ def dns_records(name, rtype):
         return [r.to_text() for r in dns.resolver.resolve(name, rtype, lifetime=5)]
     except Exception as e: return [f'error: {e}']
 
+
+SLUG_ALIASES={
+    'whois-lookup':'whois','bgp-asn-lookup':'bgp-asn','smart-health':'smart-checker','virustotal-checker':'virustotal',
+    'file-hash-verifier':'file-hash','http-header-inspector':'http-headers','website-response-time':'response-time',
+    'network-address-translator':'nat-translator','blacklist-rbl-checker':'rbl-checker','reverse-dns-lookup':'reverse-dns'
+}
+
+def unparams(payload):
+    if isinstance(payload, dict) and isinstance(payload.get('params'), dict):
+        merged=dict(payload.get('params') or {})
+        for k,v in payload.items():
+            if k!='params': merged[k]=v
+        return merged
+    return payload or {}
+
+def rdap_lookup(query):
+    try:
+        with httpx.Client(timeout=12, follow_redirects=True) as c:
+            r=c.get('https://rdap.org/domain/'+query)
+            if r.status_code==404:
+                r=c.get('https://rdap.org/ip/'+query)
+            data=r.json()
+        ents=[]
+        for e in data.get('entities',[]) or []:
+            v=e.get('vcardArray',[None,[]])[1] if isinstance(e.get('vcardArray'),list) and len(e.get('vcardArray'))>1 else []
+            vals={item[0]:item[3] for item in v if isinstance(item,list) and len(item)>=4}
+            ents.append({'roles':e.get('roles'), 'name':vals.get('fn'), 'email':vals.get('email')})
+        return {'source':'rdap.org','handle':data.get('handle'),'ldhName':data.get('ldhName'),'name':data.get('name'),'status':data.get('status'),'registrar':next((e.get('handle') for e in data.get('entities',[]) if 'registrar' in (e.get('roles') or [])),None),'events':data.get('events',[]),'nameservers':[n.get('ldhName') for n in data.get('nameservers',[])],'entities':ents,'raw':data}
+    except Exception as e:
+        return {'source':'rdap.org','error':str(e)}
+
+def parse_ports(spec):
+    out=[]
+    for part in str(spec or '').split(','):
+        part=part.strip()
+        if not part: continue
+        if '-' in part:
+            a,b=part.split('-',1); out.extend(range(int(a),int(b)+1))
+        else: out.append(int(part))
+    return sorted(set(p for p in out if 1<=p<=65535))[:2000]
+
 def ssl_check(host, port=443):
     ctx=ssl.create_default_context()
     with socket.create_connection((host,int(port)),timeout=8) as sock:
@@ -94,35 +135,72 @@ def classify(i):
 @app.get('/api/health')
 def health(): return {'app':APP_NAME,'status':'ok','data_dir':str(DATA_DIR),'database':str(DB)}
 
+@app.post('/api/tools/{slug}')
 @app.post('/api/tools/{slug}/run')
 async def run_tool(slug:str, payload:dict[str,Any]):
+    slug=SLUG_ALIASES.get(slug, slug)
+    payload=unparams(payload)
     if slug=='ping-traceroute':
         target=valid_host(payload.get('target','')); mode=payload.get('mode','ping')
-        return run_cmd(['traceroute','-m','20',target],20) if mode=='traceroute' else run_cmd(['ping','-c','4','-W','2',target],12)
+        count=str(max(1,min(10,int(payload.get('count') or 4)))); hops=str(max(1,min(64,int(payload.get('max_hops') or 20))))
+        return run_cmd(['traceroute','-m',hops,target],20) if mode=='traceroute' else run_cmd(['ping','-c',count,'-W','2',target],12)
     if slug=='port-scanner':
-        host=valid_host(payload.get('host','')); start=max(1,int(payload.get('start_port',1))); end=min(65535,int(payload.get('end_port',1024)))
-        if end<start or end-start>1000: raise HTTPException(400,'Port range must be 1-1000 ports')
-        ports=list(range(start,end+1)); results=await asyncio.gather(*[asyncio.to_thread(scan_port,host,p) for p in ports])
+        host=valid_host(payload.get('host',''))
+        if payload.get('ports'):
+            ports=parse_ports(payload.get('ports'))
+            if len(ports)>2000: raise HTTPException(400,'Port list too large')
+        else:
+            start=max(1,int(payload.get('start_port',1))); end=min(65535,int(payload.get('end_port',1024)))
+            if end<start or end-start>2000: raise HTTPException(400,'Port range must be 1-2000 ports')
+            ports=list(range(start,end+1))
+        timeout=float(payload.get('timeout') or .8)
+        async def scan(p):
+            s=socket.socket(); s.settimeout(timeout)
+            try: return 'open' if s.connect_ex((host,p))==0 else 'closed'
+            except socket.timeout: return 'filtered'
+            except Exception as e: return f'error: {e}'
+            finally: s.close()
+        results=await asyncio.gather(*[asyncio.to_thread(lambda p=p: asyncio.run(scan(p))) for p in ports])
         return {'host':host,'ports':dict(zip(map(str,ports),results)),'open':[p for p,s in zip(ports,results) if s=='open']}
     if slug=='dns-lookup':
-        domain=valid_host(payload.get('domain','')); rt=payload.get('record_type','A').upper(); types=['A','AAAA','MX','TXT','PTR','CNAME','NS'] if rt=='ALL' else [rt]
+        domain=valid_host(payload.get('domain') or payload.get('target','')); rt=(payload.get('record_type') or payload.get('rtype') or 'A').upper(); types=['A','AAAA','MX','TXT','PTR','CNAME','NS'] if rt=='ALL' else [rt]
         return {t:dns_records(domain,t) for t in types}
     if slug=='reverse-dns':
         rev=dns.reversename.from_address(payload.get('ip','')); return {'ip':payload.get('ip'),'ptr':dns_records(str(rev),'PTR')}
     if slug=='whois':
-        domain=valid_host(payload.get('domain',''))
+        domain=valid_host(payload.get('domain') or payload.get('target') or '')
+        result={}
         if whois_mod:
-            try: return json.loads(json.dumps(whois_mod.whois(domain), default=str))
-            except Exception as e: return {'error':str(e)}
-        return run_cmd(['whois',domain])
+            try:
+                result=json.loads(json.dumps(whois_mod.whois(domain), default=str))
+            except Exception as e:
+                result={'python_whois_error':str(e)}
+        # python-whois frequently returns mostly null. RDAP is less theatrical.
+        useful=[v for v in result.values() if v] if isinstance(result,dict) else []
+        if not useful or len(useful)<3:
+            rdap=rdap_lookup(domain); rdap['python_whois']=result; return rdap
+        result['source']='python-whois'; return result
     if slug=='ssl-checker': return ssl_check(valid_host(payload.get('host','')), int(payload.get('port',443)))
     if slug=='bgp-asn':
-        asn=str(payload.get('asn','')).upper().replace('AS','')
-        r=await fetch_json(f'https://api.bgpview.io/asn/{asn}'); data=r.json(); prefixes=await fetch_json(f'https://api.bgpview.io/asn/{asn}/prefixes')
-        return {'asn':asn,'details':data.get('data'), 'prefixes':prefixes.json().get('data',{})}
+        asn=str(payload.get('asn') or payload.get('query','')).upper().replace('AS','')
+        try:
+            r=await fetch_json(f'https://api.bgpview.io/asn/{asn}'); data=r.json(); prefixes=await fetch_json(f'https://api.bgpview.io/asn/{asn}/prefixes')
+            return {'asn':asn,'details':data.get('data'), 'prefixes':prefixes.json().get('data',{})}
+        except Exception as e:
+            try:
+                txt=dns_records(f'AS{asn}.asn.cymru.com','TXT')
+                parts=[x.strip('\"') for x in txt][0].split('|') if txt and not str(txt[0]).startswith('error:') else []
+                details={'asn':asn,'country':parts[1].strip() if len(parts)>1 else None,'registry':parts[2].strip() if len(parts)>2 else None,'allocated':parts[3].strip() if len(parts)>3 else None,'name':parts[4].strip() if len(parts)>4 else None,'source':'Team Cymru DNS fallback'}
+                return {'asn':asn,'details':details,'prefixes':{},'warning':f'BGPView unavailable: {type(e).__name__}: {e}'}
+            except Exception as ee:
+                return {'asn':asn,'details':{'asn':asn,'source':'fallback unavailable'},'prefixes':{},'warning':f'BGP lookup failed: {type(e).__name__}: {e}; fallback failed: {ee}'}
     if slug=='ip-geolocation':
-        ip=payload.get('ip',''); r=await fetch_json(f'http://ip-api.com/json/{ip}?fields=status,message,country,regionName,city,isp,org,as,query')
-        return r.json()
+        ip=payload.get('ip','')
+        try:
+            r=await fetch_json(f'http://ip-api.com/json/{ip}?fields=status,message,country,regionName,city,isp,org,as,query')
+            return r.json()
+        except Exception as e:
+            return {'query':ip,'status':'error','message':f'IP geolocation lookup failed: {type(e).__name__}: {e}'}
     if slug=='wake-on-lan': return magic(payload.get('mac',''), payload.get('broadcast','255.255.255.255'), payload.get('port',9))
     if slug=='http-headers':
         r=await fetch_json(payload.get('url','')); return {'url':str(r.url),'status_code':r.status_code,'headers':dict(r.headers)}
@@ -140,10 +218,24 @@ async def run_tool(slug:str, payload:dict[str,Any]):
         sample=payload.get('sample') or ''
         text=sample if sample.strip() else run_cmd(['smartctl','-a',payload.get('device','/dev/sda')],15).get('stdout','')
         return smart_parse(text)
+    if slug=='certificate-decoder':
+        pem=payload.get('pem','')
+        if 'BEGIN CERTIFICATE' not in pem: raise HTTPException(400,'Paste a PEM certificate')
+        cert=x509.load_pem_x509_certificate(pem.encode())
+        fp=cert.fingerprint(hashes.SHA256()).hex()
+        return {'subject':cert.subject.rfc4514_string(),'issuer':cert.issuer.rfc4514_string(),'not_before':cert.not_valid_before_utc.isoformat(),'not_after':cert.not_valid_after_utc.isoformat(),'serial':str(cert.serial_number),'sha256_fingerprint':':'.join(fp[i:i+2] for i in range(0,len(fp),2))}
+    if slug=='log-analyzer':
+        text=payload.get('log_text') or payload.get('content') or ''
+        pats=['failed password','invalid user','sudo','segfault','malware','powershell','encodedcommand','mimikatz','ransom','denied']
+        hits=[{'line':n,'text':line[:500]} for n,line in enumerate(text.splitlines(),1) if any(p in line.lower() for p in pats)]
+        return {'lines':text.count('\n')+1 if text else 0,'suspicious_count':len(hits),'hits':hits[:300]}
     if slug=='cve-lookup':
         q=payload.get('query',''); url='https://services.nvd.nist.gov/rest/json/cves/2.0'
         params={'cveId':q} if q.upper().startswith('CVE-') else {'keywordSearch':q}
-        r=await fetch_json(url, params=params); data=r.json(); return {'total':data.get('totalResults'), 'items':data.get('vulnerabilities',[])[:10]}
+        try:
+            r=await fetch_json(url, params=params); data=r.json(); return {'total':data.get('totalResults'), 'items':data.get('vulnerabilities',[])[:10]}
+        except Exception as e:
+            return {'query':q,'error':f'NVD lookup failed: {type(e).__name__}: {e}','total':0,'items':[]}
     if slug=='virustotal':
         key=os.getenv('VIRUSTOTAL_API_KEY'); ind=payload.get('indicator',''); typ=classify(ind)
         if not key: return {'configured':False,'indicator':ind,'type':typ,'message':'VIRUSTOTAL_API_KEY not set'}
@@ -151,7 +243,7 @@ async def run_tool(slug:str, payload:dict[str,Any]):
         async with httpx.AsyncClient(timeout=20) as c: r=await c.get(f'https://www.virustotal.com/api/v3/{base}/{val}',headers={'x-apikey':key})
         return {'status_code':r.status_code,'result':r.json()}
     if slug=='ioc-scanner':
-        items=[x.strip() for x in payload.get('items','').splitlines() if x.strip()][:100]
+        items=[x.strip() for x in (payload.get('items') or payload.get('content') or '').splitlines() if x.strip()][:100]
         return {'count':len(items),'items':[{'indicator':i,'type':classify(i),'virustotal_configured':bool(os.getenv('VIRUSTOTAL_API_KEY')),'abuseipdb_configured':bool(os.getenv('ABUSEIPDB_API_KEY'))} for i in items]}
     if slug=='unifi-client':
         return {'message':'UniFi lookup requires controller-specific API auth/session support. Supplied values were not persisted.', 'query':payload.get('query'), 'controller_url':payload.get('controller_url')}
@@ -184,8 +276,10 @@ async def run_tool(slug:str, payload:dict[str,Any]):
             con.close()
     raise HTTPException(404,'Tool not implemented')
 
+@app.post('/api/tools/{slug}/file')
 @app.post('/api/tools/{slug}/upload')
 async def upload_tool(slug:str, file:UploadFile=File(...)):
+    slug=SLUG_ALIASES.get(slug, slug)
     data=await file.read(25*1024*1024)
     if slug=='file-hash': return {'filename':file.filename,'size':len(data),'md5':hashlib.md5(data).hexdigest(),'sha256':hashlib.sha256(data).hexdigest(),'sha512':hashlib.sha512(data).hexdigest()}
     if slug=='string-finder':
@@ -211,7 +305,16 @@ async def upload_tool(slug:str, file:UploadFile=File(...)):
 
 @app.get('/api/cases')
 def cases():
-    con=db(); rows=[dict(r) for r in con.execute('select * from cases order by id desc').fetchall()]; con.close(); return rows
+    con=db(); rows=[dict(r) for r in con.execute('select * from cases order by id desc').fetchall()]; con.close(); return {'cases': rows}
+
+@app.post('/api/cases')
+def create_case(payload:dict[str,Any]):
+    con=db()
+    try:
+        cur=con.execute('insert into cases(title,description,created_at) values(?,?,?)',(payload.get('title') or 'Untitled', payload.get('summary') or payload.get('description') or '', now())); con.commit()
+        return dict(con.execute('select * from cases where id=?',(cur.lastrowid,)).fetchone())
+    finally:
+        con.close()
 
 if DIST.exists():
     app.mount('/assets', StaticFiles(directory=DIST/'assets'), name='assets')
