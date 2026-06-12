@@ -94,6 +94,8 @@ create={
         'DIST_DIR=/app/dist',
         f"VIRUSTOTAL_API_KEY={env.get('VIRUSTOTAL_API_KEY','')}",
         f"ABUSEIPDB_API_KEY={env.get('ABUSEIPDB_API_KEY','')}",
+        f"HIBP_API_KEY={env.get('HIBP_API_KEY','')}",
+        f"URLSCAN_API_KEY={env.get('URLSCAN_API_KEY','')}",
     ],
     'ExposedPorts': {PORT:{}},
     'HostConfig': {
@@ -145,7 +147,7 @@ for asset in asset_matches[:5]:
     except Exception as e:
         print(f'asset warning {asset}: {e}')
 probe = html + bundle_text
-for term in ['System Tools Suite','UniFi VLAN Builder','VirusTotal Checker','Case Manager']:
+for term in ['System Tools Suite','MXToolbox','HaveIBeenPwned','URLScan.io','SSL Labs Grade','Email Header Analyzer','Case Manager']:
     print(f'live_has_{term.replace(" ", "_")}=' + str(term in probe))
 blocked_terms = ['IT-'+'Tools','Roman '+'Numeral','BI'+'P39','UUID '+'Generator']
 for forbidden in blocked_terms:
