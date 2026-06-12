@@ -9,12 +9,12 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "@vitejs/plugin-vue": "latest",
-    "vite": "latest",
-    "vue": "latest",
-    "js-yaml": "latest",
     "@ltd/j-toml": "latest",
-    "cronstrue": "latest"
-  },
-  "devDependencies": {}
+    "@vitejs/plugin-vue": "latest",
+    "cronstrue": "latest",
+    "crypto-js": "^4.2.0",
+    "js-yaml": "latest",
+    "vite": "latest",
+    "vue": "latest"
+  }
 }

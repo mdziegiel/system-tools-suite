@@ -156,8 +156,32 @@ async def run_tool(slug:str, payload:dict[str,Any]):
     if slug=='unifi-client':
         return {'message':'UniFi lookup requires controller-specific API auth/session support. Supplied values were not persisted.', 'query':payload.get('query'), 'controller_url':payload.get('controller_url')}
     if slug=='case-manager':
-        con=db(); cur=con.execute('insert into cases(title,description,created_at) values(?,?,?)',(payload.get('case_title','Untitled'),payload.get('case_description',''),now())); con.commit()
-        row=con.execute('select * from cases where id=?',(cur.lastrowid,)).fetchone(); con.close(); return dict(row)
+        action=(payload.get('case_action') or 'create').lower(); con=db()
+        try:
+            if action=='list':
+                cases=[dict(r) for r in con.execute('select * from cases order by id desc').fetchall()]
+                return {'cases':cases}
+            if action=='create':
+                cur=con.execute('insert into cases(title,description,created_at) values(?,?,?)',(payload.get('case_title','Untitled'),payload.get('case_description',''),now())); con.commit()
+                return dict(con.execute('select * from cases where id=?',(cur.lastrowid,)).fetchone())
+            cid=int(payload.get('case_id'))
+            if action=='add_note':
+                cur=con.execute('insert into notes(case_id,body,created_at) values(?,?,?)',(cid,payload.get('note_body',''),now())); con.commit(); return dict(con.execute('select * from notes where id=?',(cur.lastrowid,)).fetchone())
+            if action=='add_evidence':
+                cur=con.execute('insert into evidence(case_id,name,kind,sha256,notes,created_at) values(?,?,?,?,?,?)',(cid,payload.get('evidence_name','Evidence'),payload.get('evidence_kind','unknown'),payload.get('evidence_sha256',''),payload.get('case_description',''),now())); con.commit(); return dict(con.execute('select * from evidence where id=?',(cur.lastrowid,)).fetchone())
+            if action=='add_timeline':
+                cur=con.execute('insert into timeline(case_id,occurred_at,event,created_at) values(?,?,?,?)',(cid,payload.get('occurred_at') or now(),payload.get('timeline_event',''),now())); con.commit(); return dict(con.execute('select * from timeline where id=?',(cur.lastrowid,)).fetchone())
+            if action=='export':
+                case=con.execute('select * from cases where id=?',(cid,)).fetchone()
+                if not case: raise HTTPException(404,'Case not found')
+                bundle={'case':dict(case),'evidence':[dict(r) for r in con.execute('select * from evidence where case_id=?',(cid,)).fetchall()],'notes':[dict(r) for r in con.execute('select * from notes where case_id=?',(cid,)).fetchall()],'timeline':[dict(r) for r in con.execute('select * from timeline where case_id=? order by occurred_at',(cid,)).fetchall()],'exported_at':now(),'pdf_note':'Use browser print-to-PDF from this JSON export for a static case packet.'}
+                return bundle
+            if action=='delete':
+                for table in ('evidence','notes','timeline'): con.execute(f'delete from {table} where case_id=?',(cid,))
+                con.execute('delete from cases where id=?',(cid,)); con.commit(); return {'deleted_case_id':cid}
+            raise HTTPException(400,'Unsupported case_action')
+        finally:
+            con.close()
     raise HTTPException(404,'Tool not implemented')
 
 @app.post('/api/tools/{slug}/upload')
