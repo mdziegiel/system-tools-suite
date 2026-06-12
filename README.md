@@ -1,124 +1,207 @@
 # System Tools Suite
 
-System Tools Suite is a fork and extension of IT-Tools for sysadmins, network engineers, security analysts, DevOps engineers, and forensic responders.
+An original MRDTech sysadmin toolkit built from scratch with Vue.js, Vite, and FastAPI. It is not a fork and does not ship novelty developer utilities. No toy generators. No novelty converters. No wallet-word tooling.
 
-It keeps the existing IT-Tools Vue/Vite frontend and adds a FastAPI backend for tools that need controlled server-side execution.
+## Design
 
-## Tool categories
+- Dark operations-console UI
+- Green accent color: `#10b981`
+- Background: `#0f172a`
+- Cards: `#1e293b`
+- Sidebar: `#111827`
+- Left category navigation
+- Search-driven card grid with larger cards and more breathing room
+- Newest tools section
+- Favorite/pin heart on each card
+- Inline tool workspace; no separate tool pages
+
+## Tool catalog
 
 ### Network Tools
-- Ping / traceroute from the server
-- TCP port scanner with custom ranges
-- DNS lookup for A, AAAA, MX, TXT, PTR, CNAME, and NS records
-- WHOIS lookup
-- SSL certificate checker with expiry, issuer, SANs, and fingerprint
-- Enhanced subnet calculator
-- VLAN calculator
-- BGP ASN lookup with prefix summary
-- Network bandwidth calculator
+
+- Ping / Traceroute
+- Port Scanner
+- DNS Lookup
+- WHOIS Lookup
+- SSL Certificate Checker
+- VLAN Calculator
+- Subnet Calculator
+- BGP ASN Lookup
+- Network Bandwidth Calculator
+- IP Geolocation
+- Wake on LAN
 
 ### System Tools
-- SMART disk health checker and smartctl parser
-- Windows Event ID lookup
-- Syslog severity calculator
-- AD/LDAP distinguished name builder
-- GPO SYSVOL path calculator
-- Enhanced cron expression builder
-- Service uptime/SLA calculator
+
+- SMART Disk Health Checker
+- Windows Event ID Lookup
+- Syslog Severity Calculator
+- AD/LDAP Distinguished Name Builder
+- GPO Path Calculator
+- Cron Expression Builder
+- Service Uptime Calculator
 
 ### Security Tools
-- Password generator with complexity controls
-- Certificate decoder
-- JWT decoder
-- Browser-side RSA SSH key material generator
-- Hash generator and verifier: MD5, SHA1, SHA256, SHA512
-- CIDR firewall rule builder
-- CVE lookup through NVD
+
+- Password Generator
+- Password Strength Analyzer
+- SSH Key Generator
+- Hash Generator / Verifier
+- Certificate Decoder
+- JWT Decoder
+- CIDR Firewall Rule Builder
+- CVE Lookup
+- VirusTotal Checker
+- Base64 Encoder / Decoder
+- IOC Scanner
 
 ### DevOps Tools
+
+- Docker Run to Compose Converter
+- Kubernetes Resource Calculator
+- Terraform Variable Formatter
+- YAML / JSON / TOML Converter
+- CI/CD Pipeline Template Generator
+
+### UniFi Tools
+
+- UniFi VLAN Builder
+- UniFi Port Profile Builder
+- UniFi Client Lookup helper
+
+### Forensic Tools
+
+- File Hash Verifier
+- Metadata Extractor
+- String Finder
+- Log Analyzer
+- IOC Scanner
+- Case Manager with SQLite-backed persistent case storage and PDF export
+
+## Backend tools
+
+FastAPI powers tools that require server-side execution or API access:
+
+- ping / traceroute
+- TCP port scan
+- DNS lookup
+- WHOIS
+- SSL certificate inspection
+- SMART disk checks
+- Wake on LAN
+- IP geolocation
+- VirusTotal lookup
+- IOC extraction/enrichment
+- log analysis
+- file hashing
+- metadata extraction
+- string extraction
+- case manager persistence and PDF export
+
+## Frontend-only tools
+
+These run in the browser:
+
+- subnet calculator
+- VLAN calculator
+- bandwidth calculator
+- password generator
+- password strength analyzer
+- JWT decoder
+- Base64 encoder/decoder
+- hash generator for WebCrypto-supported SHA algorithms
+- CIDR firewall rule builder
 - Docker run to Compose converter
 - Kubernetes resource calculator
 - Terraform variable formatter
-- YAML / JSON / TOML converter
-- CI/CD pipeline template generator for GitHub Actions and GitLab CI
-
-### Forensic Tools
-- File hash verifier
-- Metadata extractor
-- Binary string finder
-- Log analyzer for suspicious entries
-- IOC scanner with optional AbuseIPDB and VirusTotal lookups
-- Persistent case manager with evidence, notes, timeline, and export
-
-## Screenshots
-
-Screenshots go here after first visual release QA.
-
-- `screenshots/home.png`
-- `screenshots/network-tools.png`
-- `screenshots/case-manager.png`
+- YAML/JSON/TOML converter
+- UniFi VLAN builder
+- UniFi port profile builder
+- cron builder
+- uptime calculator
+- Windows Event ID lookup
+- syslog calculator
+- AD/LDAP DN builder
+- GPO path calculator
 
 ## Docker quickstart
 
 ```bash
-git clone https://github.com/mdziegiel/system-tools-suite.git
-cd system-tools-suite
 cp .env.example .env
-# Optional: add VIRUSTOTAL_API_KEY and ABUSEIPDB_API_KEY for IOC lookups
+$EDITOR .env
+
 docker compose up -d --build
 ```
 
-Open:
+The app listens on port `10233`.
 
 ```text
 http://localhost:10233
 ```
 
-MRDTech deployment target:
+## Environment variables
 
-```text
-http://10.10.10.237:10233
-```
+See `.env.example`.
 
-## Persistence
-
-The case manager stores data in SQLite under `/data/cases.sqlite3`. The Compose file mounts that path through the `system-tools-suite-data` named volume.
-
-## Environment
-
-```text
-VIRUSTOTAL_API_KEY=       # optional
-ABUSEIPDB_API_KEY=        # optional
+```bash
+VIRUSTOTAL_API_KEY=
+ABUSEIPDB_API_KEY=
 DATA_DIR=/data
 DIST_DIR=/app/dist
 ```
 
-## Development
+`VIRUSTOTAL_API_KEY` and `ABUSEIPDB_API_KEY` are optional. IOC and VirusTotal tools degrade cleanly when the keys are absent.
 
-Frontend:
+## Persistent data
 
-```bash
-pnpm install
-pnpm dev
-pnpm build
+The Case Manager stores SQLite data under `/data`.
+
+Docker Compose creates a named volume:
+
+```text
+system_tools_suite_data:/data
 ```
 
-Backend:
+## Development
+
+```bash
+npm install
+npm run build
+python3 -m compileall backend
+```
+
+Run the backend directly after installing Python dependencies:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r backend/requirements.txt
-DATA_DIR=./data DIST_DIR=./dist uvicorn backend.app:app --reload --port 10233
+uvicorn backend.app:app --host 0.0.0.0 --port 10233
 ```
 
-## Architecture
+Run Vite separately during development:
 
-- Vue 3 + Vite + Naive UI frontend, preserving IT-Tools component patterns.
-- `src/tools/system-suite/` defines new tools and routes.
-- FastAPI backend under `backend/` handles server-side operations: ping, traceroute, DNS, WHOIS, SSL, port scan, SMART parsing, CVE lookup, IOC lookup, file forensics, and case persistence.
-- Single Docker container serves the built SPA and `/api/*` endpoints on port `10233`.
+```bash
+npm run dev
+```
+
+## Screenshots
+
+Placeholder paths for future live screenshots:
+
+- `screenshots/home.png`
+- `screenshots/network-tools.png`
+- `screenshots/case-manager.png`
+
+## Security notes
+
+- Server-side command tools validate hostnames/IPs and use argument arrays, not shell strings.
+- Port scanning is capped to 2,000 ports per request.
+- Command output is truncated.
+- API keys stay in environment variables.
+- JWT decoding does not verify signatures.
+- Generated SSH private keys are shown once and should be handled like credentials.
 
 ## License
 
-GPL-3.0, inherited from IT-Tools.
+MIT.

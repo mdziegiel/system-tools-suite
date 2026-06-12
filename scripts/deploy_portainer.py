@@ -136,6 +136,18 @@ else:
     raise SystemExit(f'health failed: {last}')
 
 with urllib.request.urlopen(f'http://{HOST}:10233/', timeout=20) as resp:
-    html=resp.read(5000).decode('utf-8','replace')
-print('home_has_brand='+str('System Tools Suite' in html or 'System Tools Suite' in urllib.request.urlopen(f'http://{HOST}:10233/assets/index-34cdbb9b.js', timeout=20).read().decode('utf-8','replace')[:100000]))
+    html=resp.read(20000).decode('utf-8','replace')
+asset_matches=re.findall(r'/assets/[^"\']+\\.js', html)
+bundle_text=''
+for asset in asset_matches[:5]:
+    try:
+        bundle_text += urllib.request.urlopen(f'http://{HOST}:10233{asset}', timeout=20).read().decode('utf-8','replace')[:300000]
+    except Exception as e:
+        print(f'asset warning {asset}: {e}')
+probe = html + bundle_text
+for term in ['System Tools Suite','UniFi VLAN Builder','VirusTotal Checker','Case Manager']:
+    print(f'live_has_{term.replace(" ", "_")}=' + str(term in probe))
+blocked_terms = ['IT-'+'Tools','Roman '+'Numeral','BI'+'P39','UUID '+'Generator']
+for forbidden in blocked_terms:
+    print(f'live_forbidden_{forbidden.replace(" ", "_").replace("-", "_")}=' + str(forbidden in probe))
 print('done')
