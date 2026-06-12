@@ -1,17 +1,15 @@
 services:
   system-tools-suite:
     build: .
-    image: system-tools-suite:latest
     container_name: system-tools-suite
     restart: unless-stopped
     ports:
       - "10233:10233"
-    env_file:
-      - .env
     environment:
-      DATA_DIR: /data
-      DIST_DIR: /app/dist
+      - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}
+      - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY:-}
+      - DATA_DIR=/data
     volumes:
-      - system_tools_suite_data:/data
+      - system-tools-suite-data:/data
 volumes:
-  system_tools_suite_data:
+  system-tools-suite-data:
