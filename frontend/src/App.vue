@@ -65,11 +65,20 @@ const newestTools = computed(() => tools.slice(-6).reverse())
 const form = reactive<Record<string,string>>({})
 const result = ref('')
 const loading = ref(false)
+const theme = ref(localStorage.getItem('suite-theme') || 'dark')
+const aboutOpen = ref(false)
 const fileInput = ref<File | null>(null)
 const cases = ref<any[]>([])
 
 const filteredTools = computed(() => tools.filter(t => t.category === selectedCategory.value && `${t.title} ${t.description}`.toLowerCase().includes(query.value.toLowerCase())))
 const categoryCounts = computed(() => Object.fromEntries(categories.map(c => [c, tools.filter(t => t.category === c).length])))
+
+function setSuiteTheme(next = theme.value === 'dark' ? 'light' : 'dark') {
+  theme.value = next
+  document.body.classList.toggle('suite-light', theme.value === 'light')
+  localStorage.setItem('suite-theme', theme.value)
+}
+setSuiteTheme(theme.value)
 
 function choose(tool: Tool) {
   selected.value = tool
@@ -194,7 +203,7 @@ async function createCase() { const r=await fetch('/api/cases',{method:'POST',he
     <main>
       <header class="topbar">
         <div><h1>System Tools Suite</h1><p>Original sysadmin, network, security, DevOps, and forensic tools. No novelty converters. No inherited cruft.</p></div>
-        <input v-model="query" class="search" placeholder="Search tools..." />
+        <div class="topbar-actions"><input v-model="query" class="search" placeholder="Search tools..." /><div class="suite-iconbar" aria-label="Application links"><a class="suite-icon" href="https://github.com/mdziegiel/system-tools-suite" target="_blank" rel="noreferrer" aria-label="GitHub repository" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.31-5.47-1.34-5.47-5.94 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.65.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.93.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.83.57A12 12 0 0 0 12 .5Z"/></svg></a><button class="suite-icon" type="button" @click="aboutOpen=true" aria-label="About" title="About"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 10h2v8h-2v-8Zm1-8a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm-1-13h2v2h-2V7Z"/></svg></button><button class="suite-icon" type="button" @click="setSuiteTheme()" aria-label="Toggle theme" title="Toggle theme"><svg v-if="theme==='dark'" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.76 4.84 5.34 3.42 3.93 4.83l1.41 1.42 1.42-1.41ZM1 13h3v-2H1v2Zm10-12h2v3h-2V1Zm9.07 3.83-1.41-1.41-1.42 1.42 1.42 1.41 1.41-1.42ZM17.24 19.16l1.42 1.42 1.41-1.41-1.41-1.42-1.42 1.41ZM20 11v2h3v-2h-3ZM4 20.58l1.41-1.42-1.41-1.41-1.42 1.41L4 20.58ZM11 20h2v3h-2v-3Zm1-14a6 6 0 1 0 0 12A6 6 0 0 0 12 6Z"/></svg><svg v-else viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 14.6A8.5 8.5 0 0 1 9.4 3 9 9 0 1 0 21 14.6Z"/></svg></button></div></div>
       </header>
       <section class="newest">
         <div class="section-title"><span>Newest tools</span><b>{{ newestTools.length }}</b></div>
@@ -228,5 +237,6 @@ async function createCase() { const r=await fetch('/api/cases',{method:'POST',he
         <div class="panel output-panel"><div class="panel-title"><div><span>Output</span><h2>Result</h2></div></div><pre>{{ result || 'Run a tool to see structured output here.' }}</pre></div>
       </section>
     </main>
+    <div v-if="aboutOpen" class="suite-modal-backdrop" @click="aboutOpen=false"><div class="suite-modal" @click.stop><button class="suite-modal-close" type="button" @click="aboutOpen=false" aria-label="Close">×</button><div class="suite-modal-kicker">About</div><h2>System Tools Suite</h2><p class="suite-modal-version">Version 2.0.0</p><p>Original sysadmin, network, system, security, DevOps, UniFi, and forensic tools suite for MRDTech.</p></div></div>
   </div>
 </template>
