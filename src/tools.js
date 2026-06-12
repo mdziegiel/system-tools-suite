@@ -18,7 +18,8 @@ export const categories = [
     ['http-headers','HTTP Header Inspector','Fetch and display HTTP response headers from a URL.','backend',''],
     ['response-time','Website Response Time Checker','Measure status code and response time from this server.','backend',''],
     ['nat-translator','Network Address Translator','Calculate one-to-one NAT mappings between equal-size private and public ranges.','backend',''],
-    ['rbl-checker','Blacklist / RBL Checker','Check common DNSBL/RBL lists for an IP address.','backend','']
+    ['rbl-checker','Blacklist / RBL Checker','Check common DNSBL/RBL lists for an IP address.','backend',''],
+    ['helper-scripts','Helper Scripts','Community-sourced helper scripts for sysadmins and network engineers.','link','new','https://helper-scripts.com/']
   ]},
   { name: 'System Tools', tools: [
     ['smart-checker','SMART Disk Health Checker','Parse smartctl output or query a device path for health and temperature.','backend','new'],
@@ -64,4 +65,4 @@ export const categories = [
     ['case-manager','Case Manager','Create cases, evidence, notes, timeline entries, and export case data.','backend','new']
   ]}
 ]
-export const tools = categories.flatMap(c => c.tools.map(([slug,name,description,mode,badge]) => ({slug,name,description,mode,badge,category:c.name})))
+export const tools = categories.flatMap(c => c.tools.map(([slug,name,description,mode,badge,url]) => ({slug,name,description,mode,badge,url,category:c.name})))
