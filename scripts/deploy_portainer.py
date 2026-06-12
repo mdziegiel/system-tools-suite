@@ -137,7 +137,7 @@ else:
 
 with urllib.request.urlopen(f'http://{HOST}:10233/', timeout=20) as resp:
     html=resp.read(20000).decode('utf-8','replace')
-asset_matches=re.findall(r'/assets/[^"\']+\\.js', html)
+asset_matches=re.findall(r'/assets/[^"\']+\.js', html)
 bundle_text=''
 for asset in asset_matches[:5]:
     try:
