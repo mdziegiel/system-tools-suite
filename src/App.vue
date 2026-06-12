@@ -1,5 +1,5 @@
 <template>
-  <div class="shell">
+  <div class="shell" :data-theme="theme">
     <aside class="sidebar">
       <div class="brand"><div class="logo">STS</div><div><strong>System Tools</strong><span>Sysadmin Operations Suite</span></div></div>
       <button class="home" @click="active=null">Home</button>
@@ -11,7 +11,7 @@
       </section>
     </aside>
     <main class="main">
-      <header class="top"><div><h1>{{ activeTool?.name || 'System Tools Suite' }}</h1><p>{{ activeTool?.description || 'Original sysadmin, network, security, DevOps, UniFi, and forensic utilities.' }}</p></div><input v-model="query" class="search" placeholder="Search tools, categories, capabilities..." /></header>
+      <header class="top"><div><h1>{{ activeTool?.name || 'System Tools Suite' }}</h1><p>{{ activeTool?.description || 'Original sysadmin, network, security, DevOps, UniFi, and forensic utilities.' }}</p></div><div class="topbar-actions"><input v-model="query" class="search" placeholder="Search tools, categories, capabilities..." /><div class="suite-iconbar" aria-label="Application links"><a class="suite-icon" href="https://github.com/mdziegiel/system-tools-suite" target="_blank" rel="noreferrer" aria-label="GitHub repository" title="GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.31-5.47-1.34-5.47-5.94 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.53.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.65.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.63-5.48 5.93.43.37.81 1.1.81 2.22v3.29c0 .32.22.69.83.57A12 12 0 0 0 12 .5Z" /></svg></a><button class="suite-icon" type="button" @click="aboutOpen=true" aria-label="About" title="About"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10v7M12 7h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><button class="suite-icon" type="button" @click="toggleTheme" aria-label="Toggle theme" title="Toggle theme"><svg v-if="theme==='dark'" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button></div></div></header>
       <ToolPage v-if="active" :key="active" :tool="activeTool" @back="active=null" />
       <template v-else>
         <section class="hero"><h2>Professional infrastructure tools. No toy scaffolding.</h2><p>Run server-side diagnostics from the container, do sensitive browser-only operations locally, and keep forensic cases in persistent SQLite storage.</p></section>
@@ -20,6 +20,7 @@
         <ToolGrid title="All Tools" :items="filtered" @open="active=$event" />
       </template>
     </main>
+    <div v-if="aboutOpen" class="suite-modal-backdrop" role="dialog" aria-modal="true" aria-label="About System Tools Suite" @click="aboutOpen=false"><div class="suite-modal" @click.stop><button class="suite-modal-close" type="button" @click="aboutOpen=false" aria-label="Close">×</button><div class="suite-modal-kicker">About</div><h2>System Tools Suite</h2><p class="suite-modal-version">Version 2.0.0</p><p>Original sysadmin, network, system, security, DevOps, UniFi, and forensic tools suite for MRDTech.</p></div></div>
   </div>
 </template>
 
@@ -31,6 +32,8 @@ import cronstrue from 'cronstrue'
 import CryptoJS from 'crypto-js'
 import { categories, tools } from './tools.js'
 const active = ref(null), query = ref('')
+const theme = ref(localStorage.getItem('suite-theme') || 'dark'), aboutOpen = ref(false)
+function toggleTheme(){ theme.value = theme.value === 'dark' ? 'light' : 'dark'; localStorage.setItem('suite-theme', theme.value) }
 const open = reactive(Object.fromEntries(categories.map(c=>[c.name,true])))
 const favorites = ref(JSON.parse(localStorage.getItem('sts:favorites') || '[]'))
 function toggle(name){ open[name]=!open[name] }
