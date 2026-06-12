@@ -10,7 +10,7 @@ Screenshots will be added after the first live visual capture.
 
 ```bash
 cp .env.example .env
-# optionally set VIRUSTOTAL_API_KEY and ABUSEIPDB_API_KEY
+# optionally set VIRUSTOTAL_API_KEY, ABUSEIPDB_API_KEY, HIBP_API_KEY, and URLSCAN_API_KEY
 docker compose up -d --build
 open http://localhost:10233
 ```
@@ -23,9 +23,12 @@ Persistent case-manager data is stored in the `system-tools-suite-data` Docker v
 - Ping / Traceroute
 - Port Scanner
 - DNS Lookup
+- MXToolbox
+- DNS Propagation Checker
 - Reverse DNS Lookup
 - WHOIS Lookup
 - SSL Certificate Checker
+- SSL Labs Grade
 - VLAN Calculator
 - Subnet Calculator
 - BGP ASN Lookup
@@ -55,6 +58,9 @@ Persistent case-manager data is stored in the `system-tools-suite-data` Docker v
 - JWT Decoder
 - CIDR Firewall Rule Builder
 - CVE Lookup
+- HaveIBeenPwned
+- URLScan.io
+- Email Header Analyzer
 - VirusTotal Checker
 - Base64 Encoder / Decoder
 - IOC Scanner
@@ -83,5 +89,7 @@ Server-side threat enrichment tools read these optional environment variables:
 
 - `VIRUSTOTAL_API_KEY`
 - `ABUSEIPDB_API_KEY`
+- `HIBP_API_KEY` for HaveIBeenPwned API v3 breach checks.
+- `URLSCAN_API_KEY` for URLScan.io submissions and result polling.
 
 When keys are absent, IOC tools still classify input locally and clearly report skipped enrichments. No fake threat intel, because that would be stupid.

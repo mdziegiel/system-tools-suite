@@ -1,5 +1,6 @@
 import asyncio, base64, hashlib, ipaddress, json, os, re, socket, ssl, sqlite3, struct, subprocess, time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 import dns.reversename, dns.resolver
@@ -82,6 +83,109 @@ def rdap_lookup(query):
         return {'source':'rdap.org','handle':data.get('handle'),'ldhName':data.get('ldhName'),'name':data.get('name'),'status':data.get('status'),'registrar':next((e.get('handle') for e in data.get('entities',[]) if 'registrar' in (e.get('roles') or [])),None),'events':data.get('events',[]),'nameservers':[n.get('ldhName') for n in data.get('nameservers',[])],'entities':ents,'raw':data}
     except Exception as e:
         return {'source':'rdap.org','error':str(e)}
+
+
+def clean_domain(value):
+    value=(value or '').strip().lower()
+    value=re.sub(r'^https?://','',value).split('/')[0].split(':')[0].strip('.')
+    if not re.fullmatch(r'[a-z0-9.-]{1,253}', value) or '..' in value:
+        raise HTTPException(400,'Invalid domain format')
+    return value
+
+def resolver_lookup(name, rtype, nameserver=None, timeout=5):
+    res=dns.resolver.Resolver()
+    res.lifetime=timeout; res.timeout=timeout
+    if nameserver: res.nameservers=[nameserver]
+    try:
+        return {'ok':True,'records':[r.to_text() for r in res.resolve(name, rtype)]}
+    except Exception as e:
+        return {'ok':False,'records':[],'error':str(e)}
+
+def dnsbl_lookup_ip(ip, zones=None):
+    zones=zones or ['zen.spamhaus.org','bl.spamcop.net','b.barracudacentral.org','dnsbl.sorbs.net']
+    try:
+        ip_obj=ipaddress.ip_address(ip)
+        if ip_obj.version != 4:
+            return {z:{'listed':False,'note':'IPv6 DNSBL check skipped'} for z in zones}
+    except Exception as e:
+        return {'error':str(e)}
+    rev='.'.join(reversed(str(ip).split('.')))
+    out={}
+    for z in zones:
+        q=f'{rev}.{z}'
+        ans=resolver_lookup(q,'A',timeout=4)
+        out[z]={'listed':ans['ok'],'query':q,'records':ans.get('records',[]),'error':ans.get('error') if not ans['ok'] else None}
+    return out
+
+async def hibp_breaches(email):
+    key=os.getenv('HIBP_API_KEY')
+    if not key:
+        return {'configured':False,'email':email,'message':'HIBP_API_KEY is not configured. Set it in the container environment to enable HaveIBeenPwned API v3 checks.'}
+    headers={'hibp-api-key':key,'user-agent':'MRDTech-System-Tools-Suite'}
+    url='https://haveibeenpwned.com/api/v3/breachedaccount/'+urllib_quote(email)+'?truncateResponse=false'
+    async with httpx.AsyncClient(timeout=20) as c:
+        r=await c.get(url, headers=headers)
+    if r.status_code==404:
+        return {'configured':True,'email':email,'breached':False,'breaches':[]}
+    if r.status_code in (401,403):
+        return {'configured':True,'email':email,'error':'HIBP rejected the API key or request','status_code':r.status_code}
+    if r.status_code==429:
+        return {'configured':True,'email':email,'error':'HIBP rate limit reached','status_code':429,'retry_after':r.headers.get('retry-after')}
+    if r.status_code>=400:
+        return {'configured':True,'email':email,'error':r.text[:500],'status_code':r.status_code}
+    data=r.json()
+    return {'configured':True,'email':email,'breached':bool(data),'count':len(data),'breaches':data}
+
+def urllib_quote(value):
+    from urllib.parse import quote
+    return quote(value, safe='')
+
+async def urlscan_submit(url):
+    key=os.getenv('URLSCAN_API_KEY')
+    if not key:
+        return {'configured':False,'url':url,'message':'URLSCAN_API_KEY is not configured. Set it in the container environment to enable URLScan.io submissions.'}
+    if not re.match(r'^https?://', url or ''):
+        raise HTTPException(400,'URL must start with http:// or https://')
+    headers={'API-Key':key,'Content-Type':'application/json'}
+    async with httpx.AsyncClient(timeout=20) as c:
+        r=await c.post('https://urlscan.io/api/v1/scan/', headers=headers, json={'url':url,'visibility':'private'})
+        if r.status_code>=400:
+            return {'configured':True,'url':url,'status_code':r.status_code,'error':r.text[:1000]}
+        submit=r.json(); api=submit.get('api') or submit.get('result')
+        result=None
+        if api:
+            for _ in range(6):
+                await asyncio.sleep(5)
+                rr=await c.get(api)
+                if rr.status_code==200:
+                    result=rr.json(); break
+                if rr.status_code not in (404,429):
+                    result={'status_code':rr.status_code,'error':rr.text[:500]}; break
+    if not result:
+        return {'configured':True,'url':url,'submitted':submit,'pending':True,'message':'Scan submitted. Result was not ready during the short polling window.'}
+    page=result.get('page') or {}; verdicts=result.get('verdicts') or {}; lists=result.get('lists') or {}; meta=result.get('meta') or {}
+    tech=[t.get('name') if isinstance(t,dict) else str(t) for t in (lists.get('technologies') or [])]
+    return {'configured':True,'url':url,'submitted':submit,'verdicts':verdicts,'page':{'url':page.get('url'),'domain':page.get('domain'),'ip':page.get('ip'),'asn':page.get('asn'),'asnname':page.get('asnname'),'country':page.get('country'),'server':page.get('server')},'technologies':tech,'ips':lists.get('ips',[]),'domains':lists.get('domains',[]),'certificates':lists.get('certificates',[]),'meta':meta}
+
+async def ssllabs_grade(host):
+    host=clean_domain(host)
+    params={'host':host,'publish':'off','all':'done','fromCache':'on','ignoreMismatch':'on'}
+    async with httpx.AsyncClient(timeout=20) as c:
+        data=None
+        for _ in range(4):
+            r=await c.get('https://api.ssllabs.com/api/v3/analyze', params=params)
+            if r.status_code>=400:
+                return {'host':host,'status_code':r.status_code,'error':r.text[:1000]}
+            data=r.json()
+            if data.get('status') in ('READY','ERROR'):
+                break
+            params['startNew']='off'
+            await asyncio.sleep(8)
+    endpoints=[]
+    for e in data.get('endpoints',[]) or []:
+        endpoints.append({'ipAddress':e.get('ipAddress'),'serverName':e.get('serverName'),'statusMessage':e.get('statusMessage'),'grade':e.get('grade'),'gradeTrustIgnored':e.get('gradeTrustIgnored'),'hasWarnings':e.get('hasWarnings')})
+    return {'host':host,'status':data.get('status'),'statusMessage':data.get('statusMessage'),'testTime':data.get('testTime'),'endpoints':endpoints,'summary_grade':next((e.get('grade') for e in endpoints if e.get('grade')),None)}
+
 
 def parse_ports(spec):
     out=[]
@@ -229,6 +333,45 @@ async def run_tool(slug:str, payload:dict[str,Any]):
         pats=['failed password','invalid user','sudo','segfault','malware','powershell','encodedcommand','mimikatz','ransom','denied']
         hits=[{'line':n,'text':line[:500]} for n,line in enumerate(text.splitlines(),1) if any(p in line.lower() for p in pats)]
         return {'lines':text.count('\n')+1 if text else 0,'suspicious_count':len(hits),'hits':hits[:300]}
+    if slug=='mxtoolbox':
+        domain=clean_domain(payload.get('domain') or payload.get('target') or '')
+        mx=resolver_lookup(domain,'MX')
+        spf=[r for r in resolver_lookup(domain,'TXT').get('records',[]) if 'v=spf1' in r.lower()]
+        dmarc=resolver_lookup('_dmarc.'+domain,'TXT')
+        dmarc_records=[r for r in dmarc.get('records',[]) if 'v=dmarc1' in r.lower()]
+        mx_hosts=[]
+        for rec in mx.get('records',[]):
+            parts=rec.split()
+            host=parts[-1].rstrip('.') if parts else rec.rstrip('.')
+            if host in ('', '.'):
+                mx_hosts.append({'host':host,'ips':[],'note':'Null MX: domain does not accept email'})
+                continue
+            ips=[]
+            for rt in ('A','AAAA'):
+                ips.extend(resolver_lookup(host,rt).get('records',[]))
+            mx_hosts.append({'host':host,'ips':ips})
+        blacklist={}
+        for host in mx_hosts:
+            for ip in host.get('ips',[]):
+                if ':' not in ip:
+                    blacklist[ip]=dnsbl_lookup_ip(ip)
+        return {'domain':domain,'mx':mx,'mx_hosts':mx_hosts,'spf':{'present':bool(spf),'records':spf},'dmarc':{'present':bool(dmarc_records),'records':dmarc_records,'lookup':dmarc},'blacklist':blacklist}
+    if slug=='dns-propagation':
+        domain=clean_domain(payload.get('domain') or payload.get('target') or '')
+        rtype=(payload.get('record_type') or 'A').upper()
+        resolvers={'Cloudflare':'1.1.1.1','Google':'8.8.8.8','Quad9':'9.9.9.9','OpenDNS':'208.67.222.222','AdGuard':'94.140.14.14','ControlD':'76.76.2.0','DNS.WATCH':'84.200.69.80'}
+        results={name:resolver_lookup(domain,rtype,ip,timeout=5) for name,ip in resolvers.items()}
+        normalized=['|'.join(sorted(v.get('records',[]))) for v in results.values() if v.get('ok')]
+        consensus=max(set(normalized), key=normalized.count) if normalized else None
+        return {'domain':domain,'record_type':rtype,'resolvers':results,'consensus':consensus,'consistent':len(set(normalized))<=1 if normalized else False}
+    if slug=='hibp-check':
+        email=(payload.get('email') or '').strip()
+        if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email): raise HTTPException(400,'Invalid email address')
+        return await hibp_breaches(email)
+    if slug=='urlscan':
+        return await urlscan_submit((payload.get('url') or '').strip())
+    if slug=='ssl-labs-grade':
+        return await ssllabs_grade(payload.get('domain') or payload.get('host') or '')
     if slug=='cve-lookup':
         q=payload.get('query',''); url='https://services.nvd.nist.gov/rest/json/cves/2.0'
         params={'cveId':q} if q.upper().startswith('CVE-') else {'keywordSearch':q}

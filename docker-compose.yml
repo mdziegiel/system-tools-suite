@@ -8,6 +8,8 @@ services:
     environment:
       - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY:-}
       - ABUSEIPDB_API_KEY=${ABUSEIPDB_API_KEY:-}
+      - HIBP_API_KEY=${HIBP_API_KEY:-}
+      - URLSCAN_API_KEY=${URLSCAN_API_KEY:-}
       - DATA_DIR=/data
     volumes:
       - system-tools-suite-data:/data
